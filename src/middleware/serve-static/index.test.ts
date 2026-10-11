@@ -375,5 +375,19 @@ describe('Serve Static Middleware', () => {
       const res3 = await app.request('//admin/secret.txt')
       expect(res3.status).toBe(404)
     })
+
+    it('Should not allow directory traversal introduced via rewriteRequestPath', async () => {
+      const app = new Hono()
+      const serveStatic = baseServeStatic({
+        getContent,
+        root: 'static',
+        rewriteRequestPath: () => '../../secret.txt',
+      })
+      app.use('/*', serveStatic)
+
+      const res = await app.request('/file.txt')
+      expect(res.status).toBe(404)
+      expect(getContent).not.toHaveBeenCalledWith('../../secret.txt', expect.anything())
+    })
   })
 })

@@ -78,10 +78,19 @@ export const serveStatic = <E extends Env = Env>(
       }
     }
 
-    let path = join(
-      root,
+    let subpath =
       !optionPath && options.rewriteRequestPath ? options.rewriteRequestPath(filename) : filename
-    )
+
+    if (
+      !optionPath &&
+      options.rewriteRequestPath &&
+      /(?:^|[\/\\])\.{1,2}(?:$|[\/\\])|[\/\\]{2,}|\\/.test(subpath)
+    ) {
+      await options.onNotFound?.(c.req.path, c)
+      return next()
+    }
+
+    let path = join(root, subpath)
 
     if (options.isDir && (await options.isDir(path))) {
       path = join(path, DEFAULT_DOCUMENT)
