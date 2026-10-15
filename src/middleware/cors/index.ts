@@ -115,9 +115,21 @@ export const cors = (options?: CORSOptions): MiddlewareHandler => {
       set('Access-Control-Expose-Headers', exposeHeadersStr)
     }
 
+    function appendVary(headers: Headers, field: string) {
+      const current = headers.get('Vary')
+      if (!current) {
+        headers.set('Vary', field)
+        return
+      }
+      const tokens = current.split(',').map((t) => t.trim().toLowerCase())
+      if (!tokens.includes(field.toLowerCase()) && !tokens.includes('*')) {
+        headers.append('Vary', field)
+      }
+    }
+
     if (c.req.method === 'OPTIONS') {
       if (opts.origin !== '*') {
-        c.res.headers.append('Vary', 'Origin')
+        appendVary(c.res.headers, 'Origin')
       }
 
       if (opts.maxAge != null) {
@@ -141,7 +153,7 @@ export const cors = (options?: CORSOptions): MiddlewareHandler => {
       }
       if (headersStr) {
         set('Access-Control-Allow-Headers', headersStr)
-        c.res.headers.append('Vary', 'Access-Control-Request-Headers')
+        appendVary(c.res.headers, 'Access-Control-Request-Headers')
       }
 
       c.res.headers.delete('Content-Length')
@@ -158,7 +170,15 @@ export const cors = (options?: CORSOptions): MiddlewareHandler => {
     // Suppose the server sends a response with an Access-Control-Allow-Origin value with an explicit origin (rather than the "*" wildcard).
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
     if (opts.origin !== '*') {
-      c.header('Vary', 'Origin', { append: true })
+      const current = c.res.headers.get('Vary')
+      if (!current) {
+        c.header('Vary', 'Origin', { append: true })
+      } else {
+        const tokens = current.split(',').map((t) => t.trim().toLowerCase())
+        if (!tokens.includes('origin') && !tokens.includes('*')) {
+          c.header('Vary', 'Origin', { append: true })
+        }
+      }
     }
   }
 }

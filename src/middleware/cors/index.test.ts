@@ -529,4 +529,62 @@ describe('CORS by Middleware', () => {
       'POST',
     ])
   })
+
+  it('Does not duplicate "Origin" in Vary header if already present', async () => {
+    const subApp = new Hono()
+    subApp.use('/api/*', cors({ origin: 'http://example.com' }))
+    subApp.get('/api/dup', (c) => {
+      c.header('Vary', 'Origin, Accept-Encoding')
+      return c.text('ok')
+    })
+    subApp.get('/api/single', (c) => {
+      c.header('Vary', 'Origin')
+      return c.text('ok')
+    })
+    subApp.get('/api/wildcard', (c) => {
+      c.header('Vary', '*')
+      return c.text('ok')
+    })
+
+    const res1 = await subApp.request('http://localhost/api/dup', {
+      headers: { Origin: 'http://example.com' },
+    })
+    expect(res1.headers.get('Vary')).toBe('Origin, Accept-Encoding')
+
+    const res2 = await subApp.request('http://localhost/api/single', {
+      headers: { Origin: 'http://example.com' },
+    })
+    expect(res2.headers.get('Vary')).toBe('Origin')
+
+    const res3 = await subApp.request('http://localhost/api/wildcard', {
+      headers: { Origin: 'http://example.com' },
+    })
+    expect(res3.headers.get('Vary')).toBe('*')
+  })
+
+  it('Does not duplicate Vary tokens on OPTIONS preflight', async () => {
+    const subApp = new Hono()
+    subApp.use('/api/*', async (c, next) => {
+      c.header('Vary', 'Origin, Access-Control-Request-Headers')
+      await next()
+    })
+    subApp.use(
+      '/api/*',
+      cors({
+        origin: 'http://example.com',
+        allowHeaders: ['X-Custom'],
+      })
+    )
+    subApp.all('/api/preflight', (c) => c.text('ok'))
+
+    const res = await subApp.request('http://localhost/api/preflight', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://example.com',
+        'Access-Control-Request-Headers': 'X-Custom',
+      },
+    })
+    expect(res.status).toBe(204)
+    expect(res.headers.get('Vary')).toBe('Origin, Access-Control-Request-Headers')
+  })
 })
